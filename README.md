@@ -195,18 +195,22 @@ intervening.
 
 ## Client setup
 
-Grab the CLI for your machine from the
-[latest release](../../releases/latest) — `zerock-<os>-<arch>`:
+Grab the CLI from the [latest release](../../releases/latest) —
+`zerock-linux-amd64` or `zerock-linux-arm64`:
 
 ```sh
-curl -fsSLo zerock https://github.com/erickdsama/zerock/releases/latest/download/zerock-darwin-arm64
+curl -fsSLo zerock https://github.com/erickdsama/zerock/releases/latest/download/zerock-linux-amd64
 chmod +x zerock && sudo mv zerock /usr/local/bin/
 ```
 
 This is the **client build**: the CLI without the server, so it carries no ACME,
 DNS-provider or database code and is about half the size. It is all you need on
-a laptop. The machine that runs the server wants `zerock-server-linux-<arch>`
-instead, which is the same CLI *plus* the server.
+a machine that only opens tunnels. The host that runs the server wants
+`zerock-server-linux-<arch>` instead, which is the same CLI *plus* the server.
+
+Releases are Linux only. The client has no platform-specific code, so
+`GOOS=darwin make build-cli` produces a working macOS binary if you ever want
+one — it is simply not published.
 
 Verify a download against the release's `SHA256SUMS`:
 
@@ -396,7 +400,7 @@ make build      # ./bin/zerock      the full binary: CLI + server
 make build-cli  # ./bin/zerock-cli  the client build, no server
 make check      # vet + boundary + tests
 make race       # tests under the race detector
-make release    # ./dist/, static, for linux and macOS, amd64 and arm64,
+make release    # ./dist/, static, linux amd64 and arm64,
                 # plus SHA256SUMS. Either binary is self-contained: units,
                 # config templates and the dashboard are embedded.
 ```

@@ -53,15 +53,13 @@ jobs:
           body: |
             ## Install the CLI
 
-            Pick the build for your machine — `zerock-<os>-<arch>`.
+            `zerock-linux-amd64` or `zerock-linux-arm64`.
 
             ```sh
             curl -fsSLo zerock https://github.com/${{ github.repository }}/releases/download/${{ inputs.tag || github.ref_name }}/zerock-linux-amd64
             chmod +x zerock && sudo mv zerock /usr/local/bin/
             zerock login --server zerock.example.com --token zk_...
             ```
-
-            On macOS use `zerock-darwin-arm64` (Apple silicon) or `zerock-darwin-amd64` (Intel).
 
             ## Server
 

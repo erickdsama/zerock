@@ -62,19 +62,16 @@ install: build
 # Static binaries for the common targets. Two artifacts per platform:
 # zerock-<os>-<arch>        the client, what people install
 # zerock-server-<os>-<arch> the full binary, what the host runs
-# The server is only useful on Linux, so it is not built for darwin.
+# Linux only. Adding a platform is one more entry in the loop below; nothing in
+# either binary is platform-specific beyond what the Go toolchain handles.
 release:
 	@mkdir -p dist
 	@rm -f dist/SHA256SUMS
-	@for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do \
-		os=$${target%/*}; arch=$${target#*/}; \
-		echo "building dist/zerock-$$os-$$arch"; \
-		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch \
-			$(GO) build -trimpath -ldflags '$(LDFLAGS)' -o dist/zerock-$$os-$$arch ./cmd/zerockcli || exit 1; \
-	done
 	@for target in linux/amd64 linux/arm64; do \
 		os=$${target%/*}; arch=$${target#*/}; \
-		echo "building dist/zerock-server-$$os-$$arch"; \
+		echo "building dist/zerock-$$os-$$arch and dist/zerock-server-$$os-$$arch"; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch \
+			$(GO) build -trimpath -ldflags '$(LDFLAGS)' -o dist/zerock-$$os-$$arch ./cmd/zerockcli || exit 1; \
 		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch \
 			$(GO) build -trimpath -ldflags '$(LDFLAGS)' -o dist/zerock-server-$$os-$$arch ./cmd/zerock || exit 1; \
 	done

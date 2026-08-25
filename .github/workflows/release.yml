@@ -1,0 +1,80 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  # Lets a release be re-cut without moving the tag.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "existing tag to build and publish"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          # The Makefile stamps the version from 'git describe', which needs the
+          # full history and the tags. A shallow clone would stamp every release
+          # as "dev".
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # A release that fails its own tests is worse than no release.
+      - name: check
+        run: make check
+
+      - name: build
+        run: make release
+
+      - name: report what was built
+        run: |
+          ./dist/zerock-linux-amd64 version
+          ls -lh dist/
+          cat dist/SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: |
+            dist/zerock-*
+            dist/SHA256SUMS
+          generate_release_notes: true
+          body: |
+            ## Install the CLI
+
+            Pick the build for your machine — `zerock-<os>-<arch>`.
+
+            ```sh
+            curl -fsSLo zerock https://github.com/${{ github.repository }}/releases/download/${{ inputs.tag || github.ref_name }}/zerock-linux-amd64
+            chmod +x zerock && sudo mv zerock /usr/local/bin/
+            zerock login --server zerock.example.com --token zk_...
+            ```
+
+            On macOS use `zerock-darwin-arm64` (Apple silicon) or `zerock-darwin-amd64` (Intel).
+
+            ## Server
+
+            `zerock-server-linux-<arch>` is the full binary — the CLI plus the server
+            itself. Only the machine that owns the domain needs it.
+
+            ```sh
+            scp zerock-server-linux-amd64 you@server:zerock
+            ssh you@server 'sudo ./zerock service install --domain yourdomain.com --email you@yourdomain.com'
+            ```
+
+            ## Verifying a download
+
+            ```sh
+            sha256sum -c --ignore-missing SHA256SUMS
+            ```

@@ -3,6 +3,7 @@ module github.com/erickdsama/zerock
 go 1.25.0
 
 require (
+	fyne.io/systray v1.12.2
 	github.com/caddyserver/certmagic v0.25.4
 	github.com/hashicorp/yamux v0.1.2
 	github.com/libdns/cloudflare v0.2.2
@@ -15,6 +16,7 @@ require (
 require (
 	github.com/caddyserver/zerossl v0.1.5 // indirect
 	github.com/digitalocean/godo v1.148.0 // indirect
+	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect

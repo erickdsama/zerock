@@ -19,24 +19,6 @@ Flags:
   --profile name  saved profile to use
 `
 
-// tunnelRow is the API's view of a live tunnel.
-type tunnelRow struct {
-	ID         string `json:"id"`
-	Subdomain  string `json:"sub"`
-	Type       string `json:"type"`
-	URL        string `json:"url"`
-	PublicPort int    `json:"public_port"`
-	LocalAddr  string `json:"local_addr"`
-	TokenLabel string `json:"token_label"`
-	AgentHost  string `json:"agent_host"`
-	Uptime     string `json:"uptime"`
-	Stats      struct {
-		Requests int64 `json:"requests"`
-		BytesIn  int64 `json:"bytes_in"`
-		BytesOut int64 `json:"bytes_out"`
-	} `json:"stats"`
-}
-
 func runLS(ctx context.Context, args []string) error {
 	fs := newFlagSet("ls", usageLS)
 	mine := fs.Bool("mine", false, "only your own tunnels")
@@ -50,17 +32,11 @@ func runLS(ctx context.Context, args []string) error {
 		return err
 	}
 
-	path := "/api/v1/tunnels"
-	if *mine {
-		path += "?mine=true"
-	}
-	var out struct {
-		Tunnels []tunnelRow `json:"tunnels"`
-	}
-	if err := api.Do(ctx, "GET", path, nil, &out); err != nil {
+	tunnels, err := api.ListTunnels(ctx, *mine)
+	if err != nil {
 		return err
 	}
-	if len(out.Tunnels) == 0 {
+	if len(tunnels) == 0 {
 		fmt.Printf("No tunnels running.\n  %s\n", dim("zerock http 3000"))
 		return nil
 	}
@@ -68,22 +44,14 @@ func runLS(ctx context.Context, args []string) error {
 	tw := newTable()
 	fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 		dim("ID"), dim("PUBLIC"), dim("→ LOCAL"), dim("OWNER"), dim("AGENT"), dim("UP"), dim("TRAFFIC"))
-	for _, t := range out.Tunnels {
+	for _, t := range tunnels {
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			t.ID, bold(publicLabel(t)), t.LocalAddr, t.TokenLabel,
+			t.ID, bold(t.PublicLabel()), t.LocalAddr, t.TokenLabel,
 			orDash(t.AgentHost), t.Uptime,
 			dim(fmt.Sprintf("%d req · %s ↑ %s ↓", t.Stats.Requests,
 				humanBytes(t.Stats.BytesOut), humanBytes(t.Stats.BytesIn))))
 	}
 	return tw.Flush()
-}
-
-// publicLabel renders whichever public address applies to a tunnel type.
-func publicLabel(t tunnelRow) string {
-	if t.Type == "tcp" {
-		return strings.TrimPrefix(t.URL, "tcp://")
-	}
-	return strings.TrimPrefix(strings.TrimPrefix(t.URL, "https://"), "http://")
 }
 
 const usageKill = `Close a running tunnel. The agent sees why and stops.
@@ -109,7 +77,7 @@ func runKill(ctx context.Context, args []string) error {
 		return err
 	}
 	id := fs.Arg(0)
-	if err := api.Do(ctx, "DELETE", "/api/v1/tunnels/"+id, nil, nil); err != nil {
+	if err := api.CloseTunnel(ctx, id); err != nil {
 		return err
 	}
 	fmt.Printf("%s closed tunnel %s\n", green("✓"), bold(id))

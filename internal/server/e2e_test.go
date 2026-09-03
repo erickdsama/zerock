@@ -22,16 +22,32 @@ import (
 )
 
 // freePort returns a port nothing is listening on. A port could in principle be
-// taken between here and the bind, but nothing else in this test binary is
-// competing for one.
+// taken between here and its use, but on loopback in a test that is rare.
 func freePort(t *testing.T) int {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("reserve a port: %v", err)
+	return freePorts(t, 1)[0]
+}
+
+// freePorts reserves n distinct ports at once. Reserving them one at a time
+// lets the kernel hand a just-released port out again for the next request,
+// which is how the harness once bound its admin API on top of its own control
+// listener and failed with "address already in use".
+func freePorts(t *testing.T, n int) []int {
+	t.Helper()
+	listeners := make([]net.Listener, 0, n)
+	ports := make([]int, 0, n)
+	for i := 0; i < n; i++ {
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatalf("reserve a port: %v", err)
+		}
+		listeners = append(listeners, ln)
+		ports = append(ports, ln.Addr().(*net.TCPAddr).Port)
 	}
-	defer ln.Close()
-	return ln.Addr().(*net.TCPAddr).Port
+	for _, ln := range listeners {
+		ln.Close()
+	}
+	return ports
 }
 
 // harness is a running server plus the addresses needed to talk to it.
@@ -48,10 +64,12 @@ type harness struct {
 func startServer(t *testing.T) *harness {
 	t.Helper()
 
+	// All four ports come from one reservation so none can repeat.
+	ports := freePorts(t, 4)
 	h := &harness{
-		edge:    freePort(t),
-		control: freePort(t),
-		admin:   freePort(t),
+		edge:    ports[0],
+		control: ports[1],
+		admin:   ports[2],
 		domain:  "zerock.test",
 	}
 
@@ -63,7 +81,7 @@ func startServer(t *testing.T) *harness {
 	cfg.ControlAddr = fmt.Sprintf("127.0.0.1:%d", h.control)
 	cfg.AdminAddr = fmt.Sprintf("127.0.0.1:%d", h.admin)
 	// One base port, so the range can never come out inverted.
-	tcpBase := freePort(t)
+	tcpBase := ports[3]
 	cfg.TCPPortRange = server.PortRange{From: tcpBase, To: tcpBase + 20}
 
 	// The config is built in memory, so run it through the same validation the

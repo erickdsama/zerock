@@ -13,7 +13,11 @@ import (
 	"sync"
 )
 
-// markPNG is the zerock mark, rendered from assets/mark.svg at iconSize.
+// markPNG is the zerock mark at iconSize, scaled from assets/icon.png, the
+// mark as supplied. Regenerate it with:
+//
+//	convert icon.png -background none -gravity center -extent 180x180 \
+//	  -filter Lanczos -resize 64x64 -extent 64x64 mark.png
 //
 //go:embed assets/mark.png
 var markPNG []byte

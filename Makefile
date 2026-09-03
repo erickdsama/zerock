@@ -1,20 +1,22 @@
 # zerock - build, test and install
 #
 # Go 1.22+ is enough to bootstrap: the go directive pulls the toolchain this
-# module needs. If go is not on PATH, try /usr/local/go/bin/go.
+# module needs. When go is not on PATH, the standard install location is tried
+# before giving up, so a fresh shell without the PATH tweak still builds.
 
-GO      ?= go
+GO      ?= $(shell command -v go 2>/dev/null || ([ -x /usr/local/go/bin/go ] && echo /usr/local/go/bin/go) || echo go)
+MODULE  := $(shell sed -n 's/^module //p' go.mod)
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 # Stamped into every build so a deployed binary can be identified. Without it,
 # two builds both call themselves "dev" and there is no way to tell whether the
 # one on the server is the one you just built.
 BUILD   ?= $(shell date -u +%Y%m%dT%H%M%SZ)
 LDFLAGS := -s -w \
-	-X github.com/erick/zerock/internal/version.Version=$(VERSION) \
-	-X github.com/erick/zerock/internal/version.Build=$(BUILD)
+	-X $(MODULE)/internal/version.Version=$(VERSION) \
+	-X $(MODULE)/internal/version.Build=$(BUILD)
 PREFIX  ?= /usr/local
 
-.PHONY: all build build-cli test race vet fmt check boundary install clean release
+.PHONY: all build build-cli build-tray test race vet fmt check boundary install clean release release-tray-darwin
 
 all: check build
 
@@ -28,6 +30,12 @@ build:
 # most people install.
 build-cli:
 	$(GO) build -trimpath -ldflags '$(LDFLAGS)' -o bin/zerock-cli ./cmd/zerockcli
+
+# The tray widget: a menu bar / system tray icon that starts, watches and stops
+# tunnels. Pure Go over D-Bus on Linux; on macOS it needs cgo for Cocoa, so it
+# is built on a Mac (or by the release workflow's macOS job), never cross-built.
+build-tray:
+	$(GO) build -trimpath -ldflags '$(LDFLAGS)' -o bin/zerock-tray ./cmd/zerocktray
 
 test:
 	$(GO) test ./...
@@ -52,31 +60,55 @@ boundary:
 		$(GO) list -deps ./cmd/zerockcli | grep -E 'zerock/internal/(server|store)' | sed 's/^/  /'; \
 		exit 1; \
 	fi
-	@echo "✓ client build carries no server code"
+	@if $(GO) list -deps ./cmd/zerocktray | grep -qE 'zerock/internal/(server|store)'; then \
+		echo "error: the tray build reaches internal/server or internal/store:"; \
+		$(GO) list -deps ./cmd/zerocktray | grep -E 'zerock/internal/(server|store)' | sed 's/^/  /'; \
+		exit 1; \
+	fi
+	@echo "✓ client and tray builds carry no server code"
 
 check: vet boundary test
 
 install: build
 	install -Dm755 bin/zerock $(DESTDIR)$(PREFIX)/bin/zerock
 
-# Static binaries for the common targets. Two artifacts per platform:
+# Static binaries for every platform. Three artifacts per platform:
 # zerock-<os>-<arch>        the client, what people install
 # zerock-server-<os>-<arch> the full binary, what the host runs
-# Linux only. Adding a platform is one more entry in the loop below; nothing in
-# either binary is platform-specific beyond what the Go toolchain handles.
+# zerock-tray-<os>-<arch>   the tray widget
+# Windows binaries carry .exe, and the Windows tray is linked as a GUI program
+# so it opens no console. Everything cross-compiles with cgo off except the
+# macOS tray, which needs Cocoa: see release-tray-darwin.
+PLATFORMS ?= linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
+
 release:
 	@mkdir -p dist
 	@rm -f dist/SHA256SUMS
-	@for target in linux/amd64 linux/arm64; do \
-		os=$${target%/*}; arch=$${target#*/}; \
-		echo "building dist/zerock-$$os-$$arch and dist/zerock-server-$$os-$$arch"; \
+	@for target in $(PLATFORMS); do \
+		os=$${target%/*}; arch=$${target#*/}; ext=""; trayflags=""; \
+		if [ "$$os" = windows ]; then ext=.exe; trayflags="-H windowsgui"; fi; \
+		echo "building $$os/$$arch"; \
 		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch \
-			$(GO) build -trimpath -ldflags '$(LDFLAGS)' -o dist/zerock-$$os-$$arch ./cmd/zerockcli || exit 1; \
+			$(GO) build -trimpath -ldflags '$(LDFLAGS)' -o dist/zerock-$$os-$$arch$$ext ./cmd/zerockcli || exit 1; \
 		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch \
-			$(GO) build -trimpath -ldflags '$(LDFLAGS)' -o dist/zerock-server-$$os-$$arch ./cmd/zerock || exit 1; \
+			$(GO) build -trimpath -ldflags '$(LDFLAGS)' -o dist/zerock-server-$$os-$$arch$$ext ./cmd/zerock || exit 1; \
+		if [ "$$os" != darwin ]; then \
+			CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch \
+				$(GO) build -trimpath -ldflags "$(LDFLAGS) $$trayflags" -o dist/zerock-tray-$$os-$$arch$$ext ./cmd/zerocktray || exit 1; \
+		fi; \
 	done
 	@cd dist && sha256sum zerock-* > SHA256SUMS
 	@echo "✓ dist/ built, checksums in dist/SHA256SUMS"
+
+# The macOS tray, both architectures. Runs on a Mac: Cocoa needs cgo, and Go's
+# cgo picks the right -arch for the other one, so an arm64 Mac builds both.
+release-tray-darwin:
+	@mkdir -p dist
+	@for arch in arm64 amd64; do \
+		echo "building dist/zerock-tray-darwin-$$arch"; \
+		CGO_ENABLED=1 GOOS=darwin GOARCH=$$arch \
+			$(GO) build -trimpath -ldflags '$(LDFLAGS)' -o dist/zerock-tray-darwin-$$arch ./cmd/zerocktray || exit 1; \
+	done
 
 clean:
 	rm -rf bin dist

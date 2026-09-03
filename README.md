@@ -195,22 +195,25 @@ intervening.
 
 ## Client setup
 
-Grab the CLI from the [latest release](../../releases/latest) —
-`zerock-linux-amd64` or `zerock-linux-arm64`:
+Grab the CLI from the [latest release](../../releases/latest):
+`zerock-<os>-<arch>`, where `os` is `linux`, `darwin` (macOS) or `windows` and
+`arch` is `amd64` or `arm64`.
 
 ```sh
+# Linux / macOS
 curl -fsSLo zerock https://github.com/erickdsama/zerock/releases/latest/download/zerock-linux-amd64
 chmod +x zerock && sudo mv zerock /usr/local/bin/
 ```
 
+On Windows, download `zerock-windows-amd64.exe`, rename it to `zerock.exe` and
+put it somewhere on your `PATH`.
+
 This is the **client build**: the CLI without the server, so it carries no ACME,
 DNS-provider or database code and is about half the size. It is all you need on
 a machine that only opens tunnels. The host that runs the server wants
-`zerock-server-linux-<arch>` instead, which is the same CLI *plus* the server.
-
-Releases are Linux only. The client has no platform-specific code, so
-`GOOS=darwin make build-cli` produces a working macOS binary if you ever want
-one — it is simply not published.
+`zerock-server-<os>-<arch>` instead, which is the same CLI *plus* the server.
+The server is published for every platform too, but `service install` is for
+Linux with systemd; elsewhere run `zerock serve` under your own supervisor.
 
 Verify a download against the release's `SHA256SUMS`:
 
@@ -236,6 +239,68 @@ zerock login --server zerock.other.io  --token zk_... --profile other
 zerock http 3000 --profile acme
 ```
 
+## Tray widget
+
+`zerock-tray` puts zerock in the menu bar (macOS) or system tray (Linux,
+Windows): one place to start, watch and stop tunnels without keeping a terminal
+open for each. It is the same on every platform and it is a client, like the
+CLI — it carries none of the server code.
+
+```
+ ● zerock · acme
+ ─────────────────────────────────────────
+ ● api-x.acme.dev → :3000  ·  12 req      ▸  Copy URL · Open in browser · Stop · Forget
+ ○ db  ·  tcp 5432 --sub db               ▸  Start
+ ─────────────────────────────────────────
+ Other tunnels on this token (1)
+ swift-otter-4f2.acme.dev · laptop2 · up 3h ▸  Copy URL · Open · Close tunnel
+ ─────────────────────────────────────────
+ New tunnel…
+ Profile: acme                            ▸  acme ✓ · other
+ Edit config…
+ ─────────────────────────────────────────
+ Quit zerock
+```
+
+It reads the same config as the CLI, so log in first (`zerock login`), then run
+`zerock-tray`. From there:
+
+- **New tunnel…** opens a native form — type, local port, subdomain, and
+  optionally the local host, basic auth, public port, a name and autostart —
+  then saves the tunnel and opens it. Only the port is required. Saved tunnels stay in
+  the menu and toggle on and off with a click; **Forget** removes one. Add
+  `--autostart` to have it open whenever the widget launches.
+- **Running tunnels** show their public URL and request count. The icon turns
+  green while something is up, amber while reconnecting, and shows a bar when the
+  server refused or closed a tunnel; the submenu says why.
+- **Other tunnels on this token** lists what the same token has open elsewhere —
+  another laptop, a `zerock service tunnel` on a server, a plain `zerock http`
+  in a terminal — with the option to close them. The widget's own tunnels are
+  filtered out of this list.
+- **Profile** switches the default profile, for the CLI too. Pass `--profile` to
+  pin the widget to one instead.
+
+Saved tunnels live in the CLI config under `tunnels`, so they can be edited
+there as well:
+
+```json
+"tunnels": {
+  "api-x": { "type": "http", "port": 3000, "sub": "api-x", "autostart": true },
+  "db":    { "type": "tcp",  "port": 5432, "sub": "db" }
+}
+```
+
+**Linux** needs a panel that speaks the StatusNotifierItem protocol, which is
+how modern trays work: KDE, XFCE with the "Status Tray Items" panel item, and GNOME with the
+AppIndicator extension all do. The widget says so at startup if it cannot find
+one, and keeps waiting for it. Prompts use `zenity` or `kdialog`, and the
+clipboard `wl-copy`, `xclip` or `xsel` — whichever is installed.
+
+**macOS** needs nothing extra: the form is a native Cocoa dialog. The binary is not signed or notarised, so the
+first launch may need a right-click → Open, or `xattr -d com.apple.quarantine`.
+Grab `zerock-tray-darwin-arm64` (Apple silicon) or `-amd64` from a release, or
+build it on a Mac with `make build-tray`.
+
 ## Commands
 
 | Command | What it does |
@@ -250,6 +315,7 @@ zerock http 3000 --profile acme
 | `zerock whoami` | Which token you are using and what it may do |
 | `zerock token new/ls/revoke/rm` | Manage tokens (admin) |
 | `zerock login/logout/profiles` | Manage saved servers |
+| `zerock-tray` | Menu bar / system tray widget for the above |
 | `zerock doctor` | Check that a running server actually works |
 | `zerock serve` | Run the server |
 | `zerock service install/uninstall/tunnel` | Install as a systemd service |
@@ -396,30 +462,40 @@ directly, or callers can forge their own address.
 ## Building
 
 ```sh
-make build      # ./bin/zerock      the full binary: CLI + server
-make build-cli  # ./bin/zerock-cli  the client build, no server
-make check      # vet + boundary + tests
-make race       # tests under the race detector
-make release    # ./dist/, static, linux amd64 and arm64,
-                # plus SHA256SUMS. Either binary is self-contained: units,
-                # config templates and the dashboard are embedded.
+make build       # ./bin/zerock       the full binary: CLI + server
+make build-cli   # ./bin/zerock-cli   the client build, no server
+make build-tray  # ./bin/zerock-tray  the tray widget, for this machine's OS
+make check       # vet + boundary + tests
+make race        # tests under the race detector
+make release     # ./dist/, static, for linux, darwin and windows on amd64 and
+                 # arm64, plus SHA256SUMS. Every binary is self-contained:
+                 # units, config templates and the dashboard are embedded.
+make release-tray-darwin   # ./dist/zerock-tray-darwin-{arm64,amd64}; on a Mac
 ```
 
-Two binaries are built from one tree:
+Three binaries are built from one tree:
 
 | Built from | Artifact | Contains |
 |---|---|---|
 | `cmd/zerockcli` | `zerock-<os>-<arch>` | client verbs only |
 | `cmd/zerock` | `zerock-server-<os>-<arch>` | client verbs + server |
+| `cmd/zerocktray` | `zerock-tray-<os>-<arch>` | the tray widget, client only |
 
 The split is a package boundary, not a build tag. `internal/clientcli` holds the
 commands that talk to a server, `internal/cli` adds the ones that *are* the
-server, and `internal/cliutil` holds the plumbing both share. `make boundary`
-fails if the client build ever reaches `internal/server` or `internal/store`
-again — without it a stray import silently doubles the client and pulls ACME and
-the database back in.
+server, `internal/tray` is the widget over the same `internal/client`, and
+`internal/cliutil` holds the plumbing they share. `make boundary` fails if the
+client or tray build ever reaches `internal/server` or `internal/store` — without
+it a stray import silently doubles the client and pulls ACME and the database
+back in.
 
-Tagging `v*` builds and publishes both, for every platform, via
+The tray is the only build with a platform-specific dependency: on Linux it
+speaks D-Bus in pure Go, on Windows it calls the shell API in pure Go, and on
+macOS it needs cgo for Cocoa. So everything cross-compiles from anywhere except
+the macOS tray, which is built on a Mac — what the release workflow's macOS job
+does.
+
+Tagging `v*` builds and publishes all of them via
 `.github/workflows/release.yml`.
 
 Requires Go 1.22 or newer to bootstrap; the module's `go` directive fetches the

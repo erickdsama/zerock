@@ -43,5 +43,26 @@ jobs:
       - name: race
         run: make race
 
-      - name: build both binaries
-        run: make build build-cli
+      - name: build all binaries
+        run: make build build-cli build-tray
+
+      # Every release target except the macOS tray cross-compiles from here, so
+      # a Windows or macOS build break shows up on the pull request, not at
+      # release time.
+      - name: cross-compile release targets
+        run: make release
+
+  # The tray widget is the one thing with a platform-specific build: cgo and
+  # Cocoa on macOS. Building it there is the only way to know it still compiles.
+  tray-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: build tray
+        run: make build-tray && ./bin/zerock-tray --version

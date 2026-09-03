@@ -14,7 +14,9 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  # Everything that cross-compiles: the CLI and server for every platform, and
+  # the tray for Linux and Windows.
+  cross:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -41,7 +43,58 @@ jobs:
         run: |
           ./dist/zerock-linux-amd64 version
           ls -lh dist/
-          cat dist/SHA256SUMS
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist-cross
+          path: dist/zerock-*
+          if-no-files-found: error
+
+  # The macOS tray needs cgo for Cocoa, so it is the one artifact built on a Mac.
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: build
+        run: make release-tray-darwin
+
+      - name: report what was built
+        run: |
+          ./dist/zerock-tray-darwin-arm64 --version
+          ls -lh dist/
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist-macos
+          path: dist/zerock-*
+          if-no-files-found: error
+
+  publish:
+    needs: [cross, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: dist-*
+          path: dist
+          merge-multiple: true
+
+      # One checksum file over every platform's binaries.
+      - name: checksums
+        run: |
+          cd dist
+          chmod +x zerock-*
+          sha256sum zerock-* > SHA256SUMS
+          cat SHA256SUMS
 
       - uses: softprops/action-gh-release@v3
         with:
@@ -53,18 +106,36 @@ jobs:
           body: |
             ## Install the CLI
 
-            `zerock-linux-amd64` or `zerock-linux-arm64`.
+            Pick `zerock-<os>-<arch>`: `linux`, `darwin` (macOS) or `windows`,
+            `amd64` or `arm64`.
 
             ```sh
+            # Linux / macOS
             curl -fsSLo zerock https://github.com/${{ github.repository }}/releases/download/${{ inputs.tag || github.ref_name }}/zerock-linux-amd64
             chmod +x zerock && sudo mv zerock /usr/local/bin/
             zerock login --server zerock.example.com --token zk_...
             ```
 
+            On Windows, download `zerock-windows-amd64.exe`, rename it to
+            `zerock.exe` and put it somewhere on your `PATH`.
+
+            ## Tray widget
+
+            `zerock-tray-<os>-<arch>` for Linux, macOS and Windows: a menu bar /
+            system tray icon to start, watch and stop tunnels. It reads the same
+            config as the CLI, so log in first. On Windows it is
+            `zerock-tray-windows-amd64.exe`; double-click it.
+
+            ```sh
+            chmod +x zerock-tray-darwin-arm64 && ./zerock-tray-darwin-arm64
+            ```
+
             ## Server
 
-            `zerock-server-linux-<arch>` is the full binary — the CLI plus the server
-            itself. Only the machine that owns the domain needs it.
+            `zerock-server-<os>-<arch>` is the full binary — the CLI plus the server
+            itself. Only the machine that owns the domain needs it; `service install`
+            is for Linux with systemd, elsewhere run `zerock serve` under your own
+            supervisor.
 
             ```sh
             scp zerock-server-linux-amd64 you@server:zerock

@@ -60,10 +60,62 @@ func (p Profile) APIURL(path string) string {
 	return strings.TrimRight(base, "/") + path
 }
 
+// SavedTunnel is a tunnel definition kept in the config so it can be started
+// by name, from the tray widget or a later CLI verb, instead of retyping the
+// http/tcp flags each time.
+type SavedTunnel struct {
+	// Type is "http" or "tcp".
+	Type string `json:"type"`
+	// Port is the local port to forward to.
+	Port int `json:"port"`
+	// Host is the local host to forward to; 127.0.0.1 when empty.
+	Host string `json:"host,omitempty"`
+	// Subdomain to request; random when empty.
+	Subdomain string `json:"sub,omitempty"`
+	// RemotePort requests a specific public port for a TCP tunnel.
+	RemotePort int `json:"remote_port,omitempty"`
+	// BasicAuth is "user:pass" enforced at the edge (HTTP only).
+	BasicAuth string `json:"auth,omitempty"`
+	// Profile names the server to use; the default profile when empty.
+	Profile string `json:"profile,omitempty"`
+	// Autostart opens the tunnel as soon as the tray widget launches.
+	Autostart bool `json:"autostart,omitempty"`
+}
+
+// LocalAddr is the address the tunnel forwards to.
+func (t SavedTunnel) LocalAddr() string {
+	host := t.Host
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	return net.JoinHostPort(host, strconv.Itoa(t.Port))
+}
+
+// Args renders the tunnel as the CLI arguments that would open it, e.g.
+// "http 3000 --sub api-x", which is also how the tray widget asks for one.
+func (t SavedTunnel) Args() string {
+	parts := []string{t.Type, strconv.Itoa(t.Port)}
+	if t.Subdomain != "" {
+		parts = append(parts, "--sub", t.Subdomain)
+	}
+	if t.Host != "" && t.Host != "127.0.0.1" {
+		parts = append(parts, "--host", t.Host)
+	}
+	if t.RemotePort != 0 {
+		parts = append(parts, "--remote-port", strconv.Itoa(t.RemotePort))
+	}
+	if t.BasicAuth != "" {
+		parts = append(parts, "--auth", t.BasicAuth)
+	}
+	return strings.Join(parts, " ")
+}
+
 // Config is the on-disk CLI configuration.
 type Config struct {
 	Default  string             `json:"default"`
 	Profiles map[string]Profile `json:"profiles"`
+	// Tunnels are saved tunnel definitions, keyed by a short name.
+	Tunnels map[string]SavedTunnel `json:"tunnels,omitempty"`
 }
 
 // ErrNoProfile means the CLI has nothing to connect to yet.
@@ -102,6 +154,9 @@ func LoadConfig() (*Config, error) {
 	if cfg.Profiles == nil {
 		cfg.Profiles = map[string]Profile{}
 	}
+	if cfg.Tunnels == nil {
+		cfg.Tunnels = map[string]SavedTunnel{}
+	}
 	return &cfg, nil
 }
 
@@ -128,6 +183,16 @@ func (c *Config) Save() error {
 func (c *Config) Names() []string {
 	out := make([]string, 0, len(c.Profiles))
 	for name := range c.Profiles {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// TunnelNames lists saved tunnel names in sorted order.
+func (c *Config) TunnelNames() []string {
+	out := make([]string, 0, len(c.Tunnels))
+	for name := range c.Tunnels {
 		out = append(out, name)
 	}
 	sort.Strings(out)

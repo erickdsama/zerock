@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="147.5 50 190 190">
+  <!-- The zerock mark: the rock arch with its two tunnel arrows, cut from the
+       full logo (Downloads/gemini-svg.svg) without the wordmark or background.
+       Regenerate mark.png with: inkscape -w 64 -h 64 mark.svg -o mark.png -->
+  <defs>
+    <linearGradient id="arrowGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2D5881"/>
+      <stop offset="100%" stop-color="#214263"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(0, -20)">
+    <path d="M210,195 Q250,120 300,195 L270,210 Q240,155 220,210 Z" fill="#14283D"/>
+    <path d="M175,195 L190,125 L245,75 L285,95 L320,130 L330,195 L305,210 L285,160 Q250,120 220,165 L205,205 Z" fill="#244565"/>
+    <polygon points="190,125 245,75 225,105 210,140 200,175 175,195 182,155" fill="#F0F5F9" opacity="0.9"/>
+    <polygon points="245,75 285,95 265,115 225,105" fill="#315B85"/>
+    <polygon points="285,95 320,130 330,195 305,210 295,175 285,160 265,115" fill="#1A334C"/>
+    <path d="M275,190 Q245,245 185,225 L185,212 L155,235 L182,255 L182,242 Q255,260 295,195 Z" fill="url(#arrowGradient)"/>
+    <path d="M215,180 Q250,165 295,215 L290,225 L325,230 L310,200 L302,212 Q255,150 205,165 Z" fill="url(#arrowGradient)"/>
+  </g>
+</svg>

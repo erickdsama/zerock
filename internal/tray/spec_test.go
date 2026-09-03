@@ -77,12 +77,12 @@ func TestSavedTunnelArgsRoundTrip(t *testing.T) {
 }
 
 func TestIcoWrap(t *testing.T) {
-	png := Icon(StateUp, false)
-	ico := icoWrap(png, iconSize)
+	png := iconAt(32, StateUp, false)
+	ico := icoWrap(png, 32)
 	if len(ico) != 22+len(png) {
 		t.Fatalf("ico length %d, want header 22 + png %d", len(ico), len(png))
 	}
-	if ico[2] != 1 || ico[4] != 1 || int(ico[6]) != iconSize || int(ico[7]) != iconSize {
+	if ico[2] != 1 || ico[4] != 1 || ico[6] != 32 || ico[7] != 32 {
 		t.Fatalf("bad ICONDIR/ENTRY header: % x", ico[:22])
 	}
 	if string(ico[22:30]) != string(png[:8]) {

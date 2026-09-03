@@ -270,9 +270,10 @@ It reads the same config as the CLI, so log in first (`zerock login`), then run
   then saves the tunnel and opens it. Only the port is required. Saved tunnels stay in
   the menu and toggle on and off with a click; **Forget** removes one. Add
   `--autostart` to have it open whenever the widget launches.
-- **Running tunnels** show their public URL and request count. The icon turns
-  green while something is up, amber while reconnecting, and shows a bar when the
-  server refused or closed a tunnel; the submenu says why.
+- **Running tunnels** show their public URL and request count. The icon is the
+  zerock mark as a flat silhouette with a badge: green while something is up,
+  amber while reconnecting, red when the server refused or closed a tunnel; the
+  submenu says why. On macOS the badge is monochrome and changes shape instead.
 - **Other tunnels on this token** lists what the same token has open elsewhere —
   another laptop, a `zerock service tunnel` on a server, a plain `zerock http`
   in a terminal — with the option to close them. The widget's own tunnels are

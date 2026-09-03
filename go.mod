@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	fyne.io/systray v1.12.2
 	github.com/caddyserver/certmagic v0.25.4
+	github.com/godbus/dbus/v5 v5.1.0
 	github.com/hashicorp/yamux v0.1.2
 	github.com/libdns/cloudflare v0.2.2
 	github.com/libdns/digitalocean v0.0.0-20250606071607-dfa7af5c2e31
@@ -16,7 +17,6 @@ require (
 require (
 	github.com/caddyserver/zerossl v0.1.5 // indirect
 	github.com/digitalocean/godo v1.148.0 // indirect
-	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
@@ -37,3 +37,5 @@ require (
 	golang.org/x/time v0.6.0 // indirect
 	golang.org/x/tools v0.44.0 // indirect
 )
+
+replace fyne.io/systray => ./third_party/systray
